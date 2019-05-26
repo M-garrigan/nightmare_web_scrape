@@ -1,0 +1,11 @@
+{
+  "name": "nightmare_web_scrape",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/M-garrigan/nightmare_web_scrape.git",
+  "author": "M-garrigan <mgarrigan99@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "nightmare": "^3.0.2"
+  }
+}
