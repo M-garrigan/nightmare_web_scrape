@@ -6,6 +6,7 @@
   "author": "M-garrigan <mgarrigan99@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "adm-zip": "^0.4.13",
     "nightmare": "^3.0.2"
   }
 }
