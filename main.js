@@ -9,6 +9,7 @@ const Nightmare  = require('nightmare');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
 const S3 = require('aws-s3');
+const { s3_metadata_config, s3_zip_config } = require('./helpers/s3_config.js');
 
 const isOnLambda = binaryPack.isRunningOnLambdaEnvironment;
 
@@ -40,12 +41,14 @@ exports.handler = function(event, context){
       electronPath: electronPath    // you MUST specify electron path which you receive from installation
     });
 
+    // TODO :: Parse incoming queue item here !!!
+
     nightmare
       .goto('https://duckduckgo.com/?q=apex+legends&t=h_&iar=news&ia=news')
       .wait('.js-vertical-results') // posibly change this to a 1000 ms delay
       .evaluate( () => {
         const newsItems = [...document.querySelectorAll('.result')]; // convert the Nodelist to an array
-        let upperLimit = 5; // we only want this number of results
+        let upperLimit = 5; // we only want this number of results or less
 
         if (newsItems.length < upperLimit) {
           upperLimit = len;
@@ -79,6 +82,12 @@ exports.handler = function(event, context){
       })
       .end()
       .then( result => {
+
+        // TODO :: if result.length is 0 then return out of program
+
+        // handle date and time stamp
+        let date = handleDate();
+
         let streamKeyword ='Apex_Legends';
         const jsonFileName = `${streamKeyword}.json`;
 
@@ -88,33 +97,27 @@ exports.handler = function(event, context){
         // make .json file to hold data
         fs.writeFileSync(jsonFileName, jsonResult);
 
-        // __dirname ==  /Users/mac/Apps/nightmare_web_scrape
 
         // zip file
         const zip = new AdmZip();
         zip.addLocalFile(`${__dirname}/${jsonFileName}`);
-        zip.writeZip(`${__dirname}/${streamKeyword}.zip`)
+        zip.writeZip(`${__dirname}/${streamKeyword}.zip`);
             
         // Send file to s3 bucket
-        const config = {
-            bucketName: 'myBucket',
-            dirName: 'photos', /* optional */
-            region: 'eu-west-1',
-            accessKeyId: 'ANEIFNENI4324N2NIEXAMPLE',
-            secretAccessKey: 'cms21uMxçduyUxYjeg20+DEkgDxe6veFosBT7eUgEXAMPLE',
-            s3Url: 'https://my-s3-url.com/', /* optional */
-        }
- 
-        const S3Client = new S3(config);
-        /*  Notice that if you don't provide a dirName, the file will be automatically uploaded to the root of your bucket */
+        const S3Client_Meta = new S3(s3_metadata_config);
+        const S3Client_Zip = new S3(s3_zip_config);
         
-        /* This is optional */
-        const newFileName = 'my-awesome-file';
-        
-        S3Client
-            .uploadFile(file, newFileName)
-            .then(data => console.log(data))
-            .catch(err => console.error(err))
+        // Send updated .json
+        S3Client_Meta
+          .uploadFile('metadata.json')
+          .then(data => console.log(data))
+          .catch(err => console.error(err));
+
+        // Send updated .zip
+        S3Client_Zip
+          .uploadFile(`${streamKeyword}.zip`)
+          .then(data => console.log(data))
+          .catch(err => console.error(err));
  
         /**
          * {
