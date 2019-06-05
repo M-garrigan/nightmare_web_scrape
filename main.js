@@ -8,6 +8,7 @@ const Xvfb = require('./lib/bootstrap/xvfb');
 const Nightmare  = require('nightmare');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
+const S3 = require('aws-s3');
 
 const isOnLambda = binaryPack.isRunningOnLambdaEnvironment;
 
@@ -94,12 +95,56 @@ exports.handler = function(event, context){
         zip.addLocalFile(`${__dirname}/${jsonFileName}`);
         zip.writeZip(`${__dirname}/${streamKeyword}.zip`)
             
+        // Send file to s3 bucket
+        const config = {
+            bucketName: 'myBucket',
+            dirName: 'photos', /* optional */
+            region: 'eu-west-1',
+            accessKeyId: 'ANEIFNENI4324N2NIEXAMPLE',
+            secretAccessKey: 'cms21uMxçduyUxYjeg20+DEkgDxe6veFosBT7eUgEXAMPLE',
+            s3Url: 'https://my-s3-url.com/', /* optional */
+        }
+ 
+        const S3Client = new S3(config);
+        /*  Notice that if you don't provide a dirName, the file will be automatically uploaded to the root of your bucket */
+        
+        /* This is optional */
+        const newFileName = 'my-awesome-file';
+        
+        S3Client
+            .uploadFile(file, newFileName)
+            .then(data => console.log(data))
+            .catch(err => console.error(err))
+ 
+        /**
+         * {
+         *   Response: {
+         *     bucket: "your-bucket-name",
+         *     key: "photos/image.jpg",
+         *     location: "https://your-bucket.s3.amazonaws.com/photos/image.jpg"
+         *   }
+         * }
+         */
+
+        // erase .json file (locally)
+        try {
+          fs.unlinkSync(jsonFileName);
+          console.log(`Successfully deleted ${jsonFileName}`);
+        } catch (err) {
+          console.log(`Error deleting ${jsonFileName}: `, err);
+        }
+        // erase .zip file (locally)
+        try {
+          fs.unlinkSync(`${streamKeyword}.zip`);
+          console.log(`Successfully deleted ${streamKeyword}.zip`);
+        } catch (err) {
+          console.log(`Error deleting ${streamKeyword}.zip: `, err);
+        }
+
         // TODO
         // 1) make a name for the file (timestamp??)
         // 2) dynamic S3 folder with a file in it acting as a summary page
         //  Check item for timeout and if not found return nothing and do not generate a file to zip
-        // 5) send file to s3 bucket
-        // 6) erase file (locally)
         // 7) Fill out README.md file so that it is useful
         // 8) MAYBE:: a function to search out any old files to be erased
         // 9) Make this lambda consume data from a SQS stream
