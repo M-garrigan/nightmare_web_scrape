@@ -10,6 +10,7 @@ const fs = require('fs');
 const AdmZip = require('adm-zip');
 const S3 = require('aws-s3');
 const { s3_metadata_config, s3_zip_config } = require('./helpers/s3_config.js');
+const handleDate = require('./helpers/handleDate.js');
 
 const isOnLambda = binaryPack.isRunningOnLambdaEnvironment;
 
@@ -89,19 +90,19 @@ exports.handler = function(event, context){
         let date = handleDate();
 
         let streamKeyword ='Apex_Legends';
-        const jsonFileName = `${streamKeyword}.json`;
 
-        // json stringify data
-        let jsonResult = JSON.stringify(result);
+        // file names
+        const jsonFileName = `${date.epoch}.json`;
+        const zipFileName = `${date.epoch}.zip`;
 
         // make .json file to hold data
+        let jsonResult = JSON.stringify(result);
         fs.writeFileSync(jsonFileName, jsonResult);
 
-
-        // zip file
+        // make .zip file
         const zip = new AdmZip();
         zip.addLocalFile(`${__dirname}/${jsonFileName}`);
-        zip.writeZip(`${__dirname}/${streamKeyword}.zip`);
+        zip.writeZip(`${__dirname}/${zipFileName}`);
             
         // Send file to s3 bucket
         const S3Client_Meta = new S3(s3_metadata_config);
@@ -115,7 +116,7 @@ exports.handler = function(event, context){
 
         // Send updated .zip
         S3Client_Zip
-          .uploadFile(`${streamKeyword}.zip`)
+          .uploadFile(zipFileName)
           .then(data => console.log(data))
           .catch(err => console.error(err));
  
@@ -138,14 +139,14 @@ exports.handler = function(event, context){
         }
         // erase .zip file (locally)
         try {
-          fs.unlinkSync(`${streamKeyword}.zip`);
-          console.log(`Successfully deleted ${streamKeyword}.zip`);
+          fs.unlinkSync(zipFileName);
+          console.log(`Successfully deleted ${zipFileName}`);
         } catch (err) {
-          console.log(`Error deleting ${streamKeyword}.zip: `, err);
+          console.log(`Error deleting ${zipFileName}: `, err);
         }
 
         // TODO
-        // 1) make a name for the file (timestamp??)
+        
         // 2) dynamic S3 folder with a file in it acting as a summary page
         //  Check item for timeout and if not found return nothing and do not generate a file to zip
         // 7) Fill out README.md file so that it is useful
