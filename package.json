@@ -6,8 +6,7 @@
   "author": "M-garrigan <mgarrigan99@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "adm-zip": "^0.4.13",
-    "aws-s3": "^2.0.5",
+    "aws-sdk": "^2.469.0",
     "nightmare": "^3.0.2"
   }
 }
