@@ -1,0 +1,17 @@
+
+// This "news" object will contain every unique keyword that we have 
+// searched and found a result. The result is inside the .json file.
+
+// You can use this as a template for your own S3 bucket.
+// Just remember that comments are not allowed in .json files, 
+// so these should be deleted.
+
+{
+  "news": {
+    "apex legends": "34847422.json",
+    "drdisrespect": "34847420.json",
+    "fortnite": "34847352.json",
+    "cod": "34847302.json",
+    "chocotaco": "34847202.json"
+  }
+}
