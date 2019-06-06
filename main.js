@@ -7,15 +7,12 @@ const Xvfb = require('./lib/bootstrap/xvfb');
 
 const Nightmare  = require('nightmare');
 const fs = require('fs');
-const AdmZip = require('adm-zip');
-const S3 = require('aws-s3');
-const { s3_metadata_config, s3_zip_config } = require('./helpers/s3_config.js');
-const handleDate = require('./helpers/handleDate.js');
+const AWS = require('aws-sdk');
+const { accessKeyID, secretAccessKey } = require('./helpers/config.js');
 
 const isOnLambda = binaryPack.isRunningOnLambdaEnvironment;
 
 const electronPath = binaryPack.installNightmareOnLambdaEnvironment();
-
 
 
 exports.handler = function(event, context){
@@ -46,7 +43,7 @@ exports.handler = function(event, context){
 
     nightmare
       .goto('https://duckduckgo.com/?q=apex+legends&t=h_&iar=news&ia=news')
-      .wait('.js-vertical-results') // posibly change this to a 1000 ms delay
+      .wait(1000) 
       .evaluate( () => {
         const newsItems = [...document.querySelectorAll('.result')]; // convert the Nodelist to an array
         let upperLimit = 5; // we only want this number of results or less
@@ -84,76 +81,66 @@ exports.handler = function(event, context){
       .end()
       .then( result => {
 
-        // TODO :: if result.length is 0 then return out of program
+        if (result.length === 0) { // no news results found
+          done(null, result);  // return the empty array
+        } else {
+          let streamKeyword ='chocotaco';
 
-        // handle date and time stamp
-        let date = handleDate();
-
-        let streamKeyword ='Apex_Legends';
-
-        // file names
-        const jsonFileName = `${date.epoch}.json`;
-        const zipFileName = `${date.epoch}.zip`;
-
-        // make .json file to hold data
-        let jsonResult = JSON.stringify(result);
-        fs.writeFileSync(jsonFileName, jsonResult);
-
-        // make .zip file
-        const zip = new AdmZip();
-        zip.addLocalFile(`${__dirname}/${jsonFileName}`);
-        zip.writeZip(`${__dirname}/${zipFileName}`);
-            
-        // Send file to s3 bucket
-        const S3Client_Meta = new S3(s3_metadata_config);
-        const S3Client_Zip = new S3(s3_zip_config);
-        
-        // Send updated .json
-        S3Client_Meta
-          .uploadFile('metadata.json')
-          .then(data => console.log(data))
-          .catch(err => console.error(err));
-
-        // Send updated .zip
-        S3Client_Zip
-          .uploadFile(zipFileName)
-          .then(data => console.log(data))
-          .catch(err => console.error(err));
- 
-        /**
-         * {
-         *   Response: {
-         *     bucket: "your-bucket-name",
-         *     key: "photos/image.jpg",
-         *     location: "https://your-bucket.s3.amazonaws.com/photos/image.jpg"
-         *   }
-         * }
-         */
-
-        // erase .json file (locally)
-        try {
-          fs.unlinkSync(jsonFileName);
-          console.log(`Successfully deleted ${jsonFileName}`);
-        } catch (err) {
-          console.log(`Error deleting ${jsonFileName}: `, err);
-        }
-        // erase .zip file (locally)
-        try {
-          fs.unlinkSync(zipFileName);
-          console.log(`Successfully deleted ${zipFileName}`);
-        } catch (err) {
-          console.log(`Error deleting ${zipFileName}: `, err);
-        }
-
-        // TODO
-        
-        // 2) dynamic S3 folder with a file in it acting as a summary page
-        //  Check item for timeout and if not found return nothing and do not generate a file to zip
-        // 7) Fill out README.md file so that it is useful
-        // 8) MAYBE:: a function to search out any old files to be erased
-        // 9) Make this lambda consume data from a SQS stream
+          // time stamp & file name
+          const epoch = Date.now();
+          const jsonFileName = `${epoch}.json`;
           
+          // update local metadata.json
+          let meta = fs.readFileSync('metadata.json');
+          let metaParsed = JSON.parse(meta);
+          metaParsed.news[streamKeyword] = jsonFileName;
+          fs.writeFileSync('metadata.json', JSON.stringify(metaParsed));
+
+          // Set config for s3 bucket
+          AWS.config.update({
+            accessKeyId: accessKeyID,
+            secretAccessKey: secretAccessKey,
+            region: 'us-east-2'
+          });
+          const s3 = new AWS.S3({apiVersion: '2006-03-01'});
+
+          // Delete metadata.json file in S3 bucket
+          s3.deleteObject({
+            Bucket: 'nightmare-web-bucket',
+            Key: "metadata.json"
+            }, 
+            (err, data) => {
+              if (err) console.log(err, err.stack); // an error occurred
+              else     console.log(data);
+            }
+          );
+        
+          // Send new metadata.json to s3
+          s3.putObject({
+            Body: JSON.stringify(metaParsed),
+            Bucket: 'nightmare-web-bucket',
+            Key: 'metadata.js'
+            }, 
+            (err, data) => {
+              if (err) console.log(err, err.stack); // an error occurred
+              else     console.log(data);
+            }
+          );
+
+          // Send .json file with news results to s3
+          s3.putObject({
+            Body: JSON.stringify(result),
+            Bucket: 'nightmare-web-bucket',
+            Key: `news/${jsonFileName}`,
+            }, 
+            (err, data) => {
+              if (err) console.log(err, err.stack); // an error occurred
+              else     console.log(data);
+            }
+          )
+
         done(null, jsonResult);  // done() instead of context.done()
+        }
       })
       .catch( error => {
           console.error('Search failed:', error);
